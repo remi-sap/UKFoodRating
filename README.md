@@ -1,10 +1,12 @@
 # UKFoodRating
 Spatial dataset of 500 000 businesses handling food from the **Open Data** portal of the [U.K. Food Standard Agency](https://ratings.food.gov.uk/)
+![U.K. Food Standard Agency](https://ratings.food.gov.uk/images/OpenData/fhrsweb5.jpg)![other image](https://ratings.food.gov.uk/images/OpenData/fhiswebPass.jpg)
 
 > The food hygiene rating or inspection result given to a business reflects the standards of food hygiene found on the date of inspection or visit by the local authority. The food hygiene rating is not a guide to food quality.
 
-The python 3 program connects to the portal over the internet, downloads each local dataset and inserts it into an SAP HANA table.
-The table is automatically created with all requried columns and a primary key. 
+
+The python program connects to the portal, downloads each local dataset and inserts it into an SAP HANA table.
+The table is automatically created with all requried columns and a primary key.
 
 ## Install dependencies 
 
@@ -17,6 +19,7 @@ Collecting mechanicalsoup
 
 Successfully installed beautifulsoup4-4.7.1 certifi-2019.6.16 chardet-3.0.4 idna-2.8 lxml-4.3.4 mechanicalsoup-0.11.0 requests-2.22.0 six-1.12.0 soupsieve-1.9.1 urllib3-1.25.3
 ```
+The documentation to install the python driver for SAP HANA [is here on help.sap.com](https://help.sap.com/viewer/0eec0d68141541d1b07893a39944924e/2.0.04/en-US/39eca89d94ca464ca52385ad50fc7dea.html)
 
 `pip3 install $HOME/sap/hdbclient/hdbcli-2.3.134.tar.gz`
 ```
@@ -46,7 +49,7 @@ optional arguments:
   --table TABLE        Target Table Name. Default is "FHR"
 ```
 ## Example
-Sample execution looks like this:
+Sample output for the first execution is pasted below. (FYI, this is not my real password)
 
 `python3 ./food_uk.py --user SYSTEM --host h2u --password JaimeLeVin --port 30015 --batch 8000`
 ```
