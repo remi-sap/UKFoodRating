@@ -1,7 +1,11 @@
-create or replace function spatialdemo.find( NameStartsWith NVARCHAR(64) DEFAULT '')
+--
+-- IMPORTANT : You might need to change the schema name
+--
+
+create or replace function food_rating.find( NameStartsWith NVARCHAR(64) DEFAULT '')
 /* This function returns all businesses with a location whose name start with the specified string.
 The default value is an empty string which returns the whole dataset.
-The comparison is case insensitive
+The comparison is case insensitive.
 */
 
 RETURNS
@@ -16,7 +20,7 @@ RETURNS
 begin
 
 	return select id, initcap(businessname) as businessname,businesstype, longitude, latitude, pt, ratingvalue
-		from spatialdemo.FHR
+		from food_rating.FHR
 		where pt is not null
 		  and InitCap(businessname) like InitCap(NameStartsWith)||'%'
 		order by longitude;

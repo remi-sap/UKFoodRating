@@ -8,7 +8,7 @@ Spatial dataset of 500 000 businesses handling food from the **Open Data** porta
 The python program connects to the portal, downloads each local dataset and inserts it into an SAP HANA table.
 The table is automatically created with all requried columns and a primary key.
 
-## Install dependencies
+## Install python package dependencies
 
 `pip3 install mechanicalsoup`
 ```
@@ -27,7 +27,7 @@ Installing collected packages: hdbcli
   Running setup.py install for hdbcli ... done
 Successfully installed hdbcli-2.3.134
 ````
-## Usage
+## Program Usage
 Program parameters are described by calling the help:
 `python3 ./food_uk.py -h`
 ```
