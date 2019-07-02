@@ -51,14 +51,14 @@ optional arguments:
 ## Example
 Sample output for the first execution is pasted below. (FYI, this is not my real password)
 
-`python3 ./food_uk.py --user SYSTEM --host h2u --password JaimeLeVin --port 30015 --batch 8000`
+`python3 ./food_uk.py --user SYSTEM --host h2u --password JaimeLeVin --port 30015 --batch 8000 --schema FOOD_RATING`
 ```
 Attempting to connect to SAP HANA at h2u:30015
 Connection Established
-    query failed ( select top 1 * from SYSTEM.FHR)
-Failed to select from SYSTEM.FHR
-    query failed (drop table SYSTEM.FHR)
-    query succeeded ( create column table SYSTEM.FHR(    ID int not null primary key,
+    query failed ( select top 1 * from FOOD_RATING.FHR)
+Failed to select from FOOD_RATING.FHR
+    query failed (drop table FOOD_RATING.FHR)
+    query succeeded ( create column table FOOD_RATING.FHR(    ID int not null primary key,
    BusinessName NVARCHAR(128),
    BusinessType NVARCHAR(128),
    RatingValue SMALLINT null,
@@ -70,7 +70,7 @@ Failed to select from SYSTEM.FHR
    url NVARCHAR(512) null,
    pt ST_Point(1000004326) VALIDATION FULL BOUNDARY CHECK ON
 ))
-    query succeeded (create index IDX_LAT_FHR on SYSTEM.FHR (latitude))
+    query succeeded (create index IDX_LAT_FHR on FOOD_RATING.FHR (latitude))
 Opening page  http://ratings.food.gov.uk/open-data/en-GB
 Found 384 links to open
 Opening http://ratings.food.gov.uk/OpenDataFiles/FHRS297en-GB.xml 1/384
@@ -82,5 +82,5 @@ http://ratings.food.gov.uk/OpenDataFiles/FHRS109en-GB.xml ; 1158 ; 2.12769 ; 544
 
 [...]
 
-  Executing (merge delta of SYSTEM.FHR)
+  Executing (merge delta of FOOD_RATING.FHR)
 ```
