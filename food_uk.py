@@ -35,19 +35,19 @@ INSERT_ARRAY_SIZE = args.batch
 #  - - - - - - - - - SQL Statements - - - -
 sql_select = " select top 1 * from " + tableName
 sql_drop = "drop table " + tableName
-sql_create = " create column table " + tableName + "( " \
-                                                "   ID int not null primary key, \n" \
-                                                "   BusinessName NVARCHAR(128),\n" \
-                                                "   BusinessType NVARCHAR(128),\n" \
-                                                "   RatingValue SMALLINT null,\n" \
-                                                "   latitude double null,\n" \
-                                                "   longitude double null,\n" \
-                                                "   ScoreH smallint null,\n" \
-                                                "   ScoreS smallint null,\n" \
-                                                "   ScoreM smallint null,\n" \
-                                                "   url NVARCHAR(512) null,\n" \
-                                                "   pt ST_Point(1000004326) VALIDATION FULL BOUNDARY CHECK ON\n" \
-                                                ")"
+sql_create = " create column table " + tableName + """( 
+                                                ID int not null primary key, 
+                                                BusinessName NVARCHAR(180),
+                                                BusinessType NVARCHAR(180),
+                                                RatingValue SMALLINT null,
+                                                latitude double null,
+                                                longitude double null,
+                                                ScoreH smallint null,
+                                                ScoreS smallint null,
+                                                ScoreM smallint null,
+                                                url NVARCHAR(512) null,
+                                                pt ST_Point(1000004326) VALIDATION FULL BOUNDARY CHECK ON
+                                                )"""
 sql_create_idx = "create index IDX_LAT_"+args.table + " on "+tableName + " (latitude)"
 sql_update = "update " + tableName + " set pt =NEW ST_Point(longitude, latitude).ST_SRID(1000004326) " \
                                      "where longitude is not null " \
