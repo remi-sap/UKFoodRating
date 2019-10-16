@@ -125,14 +125,20 @@ soup = browser.get_current_page()
 files = []
 links_in_page = soup.find_all("a")
 for l in links_in_page:
-    if type(l['href']) is str and l['href'].startswith(
-            "http://ratings.food.gov.uk/OpenDataFiles/FHRS") and l.text == "English language":
+    if l.get('href') is not None and type(l['href']) is str and l['href'].startswith(
+            "http://ratings.food.gov.uk/OpenDataFiles/FHRS") and l.text.find("English language") >=0:
         files.append(l['href'])
+
+print("found ",str(len(links_in_page))," links")
+#print(soup)
+
 
 browser.close()
 nb_files = len(files)
 
 print("Found " + str(nb_files) + " links to open")
+
+
 
 lat = 1.1
 long = 1.1
