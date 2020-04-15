@@ -37,8 +37,69 @@ begin
 		order by longitude;
 end;
 
---hexadecimal + predictive model
-CREATE or replace function spatialdemo.f_hex(VIEW_EXTENT NVARCHAR(400), radius int)
+-------------------------------------------------------------------------------
+-- Aspherical geoclustering
+
+CREATE or replace function food_rating.f_bad_hygiene(VIEW_EXTENT NVARCHAR(400))
+returns
+TABLE (
+	ID int,
+    bin_num int,
+	KPI_PER_KM2 double,
+	shape st_geometry(4326),
+	surface_km double,
+	cnt  int
+)
+lANGUAGE SQLSCRIPT as
+begin
+   declare xmin double;
+   declare xmax double;
+   declare ymin double;
+   declare ymax double;
+   declare surface_km double;
+   declare view_surface_km double;
+
+   declare eps_degree double;
+
+   select bbox.ST_XMin(),
+          bbox.ST_XMax(),
+          bbox.ST_YMin(),
+          bbox.ST_YMax(),
+          bbox.ST_Area('kilometer')
+          into xmin, xmax, ymin, ymax, view_surface_km
+   from (select ST_GeomFromText(:VIEW_EXTENT, 4326) as bbox from dummy);
+
+
+	return select ID,
+	       BINNING(VALUE => KPI_PER_KM2, TILE_COUNT => 5) OVER () AS bin_num,
+	       KPI_PER_KM2,
+	       --shape.ST_Buffer(50,'meter') as shape,
+	       shape.ST_SRID(1000004326).ST_Buffer(50,'meter').ST_SRID(4326) as shape,
+	       surface_km,
+	       cnt
+	from(
+	    SELECT ST_ClusterID() as ID,
+	       count(*)/ST_ConcaveHullAggr(pt).ST_SRID(4326).ST_Area('kilometer') AS KPI_PER_KM2,
+	       ST_ConcaveHullAggr(pt).ST_SRID(4326) as SHAPE,
+	       ST_ConcaveHullAggr(pt).ST_SRID(4326).ST_Area('kilometer') as surface_km,
+	       to_integer(COUNT(*)) AS CNT
+	    FROM food_rating.FHR f
+	    WHERE 1=1
+	      AND ST_GeomFromText(:view_extent, 1000004326).ST_Contains(pt) = 1
+	      AND ratingvalue <=3
+	    GROUP cluster by pt
+	    using DBSCAN
+	    EPS 0.00225
+	    MINPTS 20
+	    HAVING st_clusterid()<>0
+	)n ;
+
+end;
+
+----------------------------------------------------------------------------------
+-- Compute hexadecimal clustering and apply a predictive score
+
+CREATE or replace function food_rating.f_hex(VIEW_EXTENT NVARCHAR(400), radius int)
 returns
 TABLE (
 	ID int,
@@ -76,9 +137,9 @@ begin
     declare cat_sandwich     nvarchar(64)= 'Takeaway/sandwich shop';
     declare cat_restaurant   nvarchar(64)= 'Restaurant/Cafe/Canteen';
 
-   select bbox.ST_XMin(),
+   select floor(bbox.ST_XMin()),
           bbox.ST_XMax(),
-          bbox.ST_YMin(),
+          floor(bbox.ST_YMin()),
           bbox.ST_YMax(),
           bbox.ST_Area('kilometer')
           into xmin, xmax, ymin, ymax, view_surface_km
@@ -89,23 +150,31 @@ begin
           into x , y
    from dummy;
 
-
    --sphere of an hexagon
    surface_km= 3. * sqrt(3) * :radius/1000 * :radius/1000 / 2;
 
-   clusters=select st_clusterid() as id,
-		           ST_ClusterCell() as shape,
-		           to_integer(sum(case when businesstype=:cat_retail_big   then 1 else 0 end)/:surface_km) as NB_RETAIL_BIG,
-				    to_integer(sum(case when businesstype=:cat_retail_small then 1 else 0 end)/:surface_km) as NB_RETAIL_SMALL,
-				    to_integer(sum(case when businesstype=:cat_bar          then 1 else 0 end)/:surface_km) as NB_BAR,
-				    to_integer(sum(case when businesstype=:cat_sandwich     then 1 else 0 end)/:surface_km) as NB_SANDWICH,
-				    to_integer(sum(case when businesstype=:cat_restaurant   then 1 else 0 end)/:surface_km) as NB_RESTAURANT,
-				    to_integer(sum(case when ratingvalue <=3 then 1 else 0 end)/:surface_km) as NB_LT_3,
-				    to_integer(sum(case when businesstype=:cat_restaurant and ratingvalue=5 then 1 else 0 end)/:surface_km) as NB_RESTAURANT_5,
-				    to_decimal(avg(case when businesstype=:cat_bar then ratingvalue end),2,1) as AVG_BAR
-		  from "FOOD_RATING"."FHR"
+   transform_pt = select --pt.ST_SRID(0) as pt,
+                  pt.ST_Transform(3857) as pt,
+                  businesstype,
+                  ratingvalue,
+                  LONGITUDE,
+                  LATITUDE
+   from "FOOD_RATING"."FHR"
 		  where LONGITUDE BETWEEN :xmin and :xmax
-	        and LATITUDE BETWEEN :ymin AND :ymax
+	        and LATITUDE BETWEEN :ymin AND :ymax ;
+
+
+   clusters=select ST_clusterid() as id,
+		           ST_ClusterCell() as shape,
+		            to_integer(sum(case businesstype when :cat_retail_big   then 1 else 0 end)/:surface_km) as NB_RETAIL_BIG,
+				    to_integer(sum(case businesstype when :cat_retail_small then 1 else 0 end)/:surface_km) as NB_RETAIL_SMALL,
+				    to_integer(sum(case businesstype when :cat_bar          then 1 else 0 end)/:surface_km) as NB_BAR,
+				    to_integer(sum(case businesstype when :cat_sandwich     then 1 else 0 end)/:surface_km) as NB_SANDWICH,
+				    to_integer(sum(case businesstype when :cat_restaurant   then 1 else 0 end)/:surface_km) as NB_RESTAURANT,
+				    to_integer(sum(case when ratingvalue <=3 then 1 else 0 end)/:surface_km) as NB_LT_3,
+				    to_integer(sum(case when businesstype = :cat_restaurant and ratingvalue=5 then 1 else 0 end)/:surface_km) as NB_RESTAURANT_5,
+				    to_decimal(avg(case businesstype when :cat_bar          then ratingvalue end),2,1) as AVG_BAR
+		  from :transform_pt
    		  group CLUSTER BY pt
 	     USING hexagon X CELLS :y
 	     having count(*)>5;
@@ -255,67 +324,65 @@ NB_RETAIL_BIG,NB_RETAIL_SMALL, NB_BAR,NB_SANDWICH,NB_RESTAURANT,NB_LT_3,NB_RESTA
 	      from :clusters;
 
 	   return
-	   select id,shape.ST_SRID(4326) as shape,
+	   select id,
+	   shape.ST_Transform(4326) as shape,
 	   to_integer(least(predict_pret_a_manger+0.2,0.92)*10) as predict_pret_a_manger,
 	   NB_RETAIL_BIG,NB_RETAIL_SMALL, NB_BAR,NB_SANDWICH,NB_RESTAURANT,NB_LT_3,NB_RESTAURANT_5,AVG_BAR, :radius as radius
 	   from :prediction
 	      where predict_pret_a_manger>0.1;
-end;
+end ;
 
---select *  from spatialdemo.find('burger king')
 
-CREATE or replace function food_rating.f_bad_hygiene(VIEW_EXTENT NVARCHAR(400))
-returns
+-------------
+--  computes geo indicator around each store "Pret A Manger"
+CREATE or replace FUNCTION food_rating.F_GEOINDICATOR(VIEW_EXTENT NVARCHAR(400),radius INT)
+RETURNS
 TABLE (
-	ID int,
-    bin_num int,
-	KPI_PER_KM2 double,
-	shape st_geometry(4326),
-	surface_km double,
-	cnt  int
-)
-lANGUAGE SQLSCRIPT as
-begin
-   declare xmin double;
-   declare xmax double;
-   declare ymin double;
-   declare ymax double;
-   declare surface_km double;
-   declare view_surface_km double;
+  ID int,
+  NB_RETAIL_BIG int,
+	NB_RETAIL_SMALL int,
+	NB_BAR int,
+	NB_SANDWICH int,
+	NB_RESTAURANT int,
+	NB_LT_3 int,
+	NB_RESTAURANT_5 int,
+	AVG_RATING_BAR double,
+	TOTAL_CNT int,
+	shape ST_Geometry(4326)
+) lANGUAGE SQLSCRIPT as
+BEGIN
 
-   declare eps_degree double;
+    declare cat_retail_big   nvarchar(64)= 'Retailers - supermarkets/hypermarkets';
+    declare cat_retail_small nvarchar(64)= 'Retailers - other';
+    declare cat_bar          nvarchar(64)= 'Pub/bar/nightclub';
+    declare cat_sandwich     nvarchar(64)= 'Takeaway/sandwich shop';
+    declare cat_restaurant   nvarchar(64)= 'Restaurant/Cafe/Canteen';
 
-   select bbox.ST_XMin(),
-          bbox.ST_XMax(),
-          bbox.ST_YMin(),
-          bbox.ST_YMax(),
-          bbox.ST_Area('kilometer')
-          into xmin, xmax, ymin, ymax, view_surface_km
-   from (select ST_GeomFromText(:VIEW_EXTENT, 4326) as bbox from dummy);
+	res = SELECT t1.id,
+	      t1.PT as pt,
+       to_integer(sum(case t2.businesstype when :cat_retail_big   then 1 else 0 end)) as NB_RETAIL_BIG,
+		to_integer(sum(case t2.businesstype when :cat_retail_small then 1 else 0 end)) as NB_RETAIL_SMALL,
+		to_integer(sum(case t2.businesstype when :cat_bar          then 1 else 0 end)) as NB_BAR,
+		to_integer(sum(case t2.businesstype when :cat_sandwich     then 1 else 0 end)) as NB_SANDWICH,
+		to_integer(sum(case t2.businesstype when :cat_restaurant   then 1 else 0 end)) as NB_RESTAURANT,
+		to_integer(sum(case when t2.ratingvalue <=3 then 1 else 0 end)) as NB_LT_3,
+		to_integer(sum(case when t2.businesstype = :cat_restaurant and t2.ratingvalue=5 then 1 else 0 end)) as NB_RESTAURANT_5,
+		to_decimal(avg(case t2.businesstype when :cat_bar          then t2.ratingvalue end),2,1) as AVG_RATING_BAR,
+		to_integer(count(*)) as TOTAL_CNT
+	from food_rating.FHR t1
+	  INNER JOIN  food_rating.FHR t2
+	    ON ( t2.LATITUDE BETWEEN T1.LATITUDE -0.005 AND  T1.LATITUDE +0.005
+	      AND t2.LONGITUDE BETWEEN T1.LONGITUDE -0.005 AND  T1.LONGITUDE +0.005
+	      AND t2.id<> t1.id)
+	where t1.pt is not null
+		and InitCap(t1.businessname) like InitCap('pret %')
+		AND t1.PT.ST_WithinDistance(t2.PT, :radius, 'meter')=1
+		and t1.pt.ST_Within(ST_GeomFromText(:VIEW_EXTENT, 1000004326))=1
+	GROUP BY t1.id, t1.pt ;
 
+    return select id, NB_RETAIL_BIG, NB_RETAIL_SMALL, NB_BAR, NB_SANDWICH, NB_RESTAURANT, NB_LT_3, NB_RESTAURANT_5, AVG_RATING_BAR,
+    		TOTAL_CNT,
+           PT.ST_transform(3857).ST_Buffer(:radius, 'meter').ST_Transform(4326) as shape
+    from :res;
 
-	return select ID,
-	       BINNING(VALUE => KPI_PER_KM2, TILE_COUNT => 5) OVER () AS bin_num,
-	       KPI_PER_KM2,
-	       --shape.ST_Buffer(50,'meter') as shape,
-	       shape.ST_SRID(1000004326).ST_Buffer(50,'meter').ST_SRID(4326) as shape,
-	       surface_km,
-	       cnt
-	from(
-	    SELECT ST_ClusterID() as ID,
-	       count(*)/ST_ConcaveHullAggr(pt).ST_SRID(4326).ST_Area('kilometer') AS KPI_PER_KM2,
-	       ST_ConcaveHullAggr(pt).ST_SRID(4326) as SHAPE,
-	       ST_ConcaveHullAggr(pt).ST_SRID(4326).ST_Area('kilometer') as surface_km,
-	       to_integer(COUNT(*)) AS CNT
-	    FROM food_rating.FHR f
-	    WHERE 1=1
-	      AND ST_GeomFromText(:view_extent, 1000004326).ST_Contains(pt) = 1
-	      AND ratingvalue <=3
-	    GROUP cluster by pt
-	    using DBSCAN
-	    EPS 0.00225
-	    MINPTS 20
-	    HAVING st_clusterid()<>0
-	)n ;
-
-end;
+END

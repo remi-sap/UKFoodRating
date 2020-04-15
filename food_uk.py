@@ -18,6 +18,7 @@ parser.add_argument('--port', required=True, type=int, help='Port to SAP HANA te
 parser.add_argument('--schema', help='Schema inside SAP HANA tenant')
 parser.add_argument('--batch', type=int, help='Group Inserts in batches of X rows for better throughput. Default is 3000', default=3000)
 parser.add_argument('--table', help='Target Table Name. Default is "FHR"', default='FHR')
+parser.add_argument('--encrypt', help='Use SSL for network encryption', action="store_true")
 
 
 args = parser.parse_args()
@@ -61,9 +62,12 @@ sql_merge = "merge delta of " + tableName
 url = "http://ratings.food.gov.uk/open-data/en-GB"
 
 
-#connect !
+#connect !from hdbcli import dbapi
 print("Attempting to connect to SAP HANA at " + args.host + ':'+str(args.port))
-conn = dbapi.connect(address=args.host, port=args.port, user=args.user, password=args.password)
+print(args.user)
+print(args.password)
+#conn = dbapi.connect( userkey='HC_DEMO', encrypt=True)
+conn = dbapi.connect(address=args.host, port=args.port, user=args.user, password=args.password, encrypt=args.encrypt)
 
 print("Connection Established")
 
